@@ -29,8 +29,8 @@ df['title'] = df['title'].apply(lambda x: x[10:-2])
 
 
 def date_format(x):
-    pattern = 'releaseDate\":(\d{9,10})'
-    date = re.search(pattern, x)
+    date_pattern = 'releaseDate\":(\d{9,10})'
+    date = re.search(date_pattern, x)
     if date:
         return pd.to_datetime(date.group(0)[13:], unit='s').year
     else:
