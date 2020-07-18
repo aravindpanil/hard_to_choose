@@ -1,3 +1,5 @@
+import re
+
 import pandas as pd
 
 from read_db import create_master, open_db
@@ -16,6 +18,25 @@ for key, value in meta_types.items():
     df[value] = df.loc[df['typeID'] == key, 'metadata']
 df = df.groupby('releaseKey')[list(meta_types.values())].first().reset_index()
 
+# delete duplicate Columns
 df.dropna(inplace=True)
 df.drop(['originalTitle', 'originalMeta'], axis=1, inplace=True)
+df.reset_index(inplace=True, drop=True)
+
+# Format date and drop meta
+df['title'] = df['title'].apply(lambda x: x[10:-2])
+
+
+def date_format(x):
+    pattern = 'releaseDate\":(\d{9,10})'
+    date = re.search(pattern, x)
+    if date:
+        return pd.to_datetime(date.group(0)[13:], unit='s').year
+    else:
+        return pd.to_datetime(0, unit='s').year
+
+
+df['date'] = df['meta'].apply(date_format)
+
+df.drop(['meta'], axis=1, inplace=True)
 df.reset_index(inplace=True, drop=True)
