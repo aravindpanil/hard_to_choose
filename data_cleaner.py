@@ -1,3 +1,4 @@
+import json
 import re
 
 import pandas as pd
@@ -40,3 +41,19 @@ df['date'] = df['meta'].apply(date_format)
 
 df.drop(['meta'], axis=1, inplace=True)
 df.reset_index(inplace=True, drop=True)
+
+# Extract Platform from releaseKey
+
+with open('platforms.json') as f:
+    platform = json.load(f)
+    platform_keys = list(platform.keys())
+    pattern = re.compile(r"(\b{}\b)".format("|".join(platform_keys)))
+
+
+def platform_extract(x):
+    m = pattern.match(x)
+    if m:
+        return platform[m.group(1)]
+
+
+df['platform'] = df['releaseKey'].apply(platform_extract)
