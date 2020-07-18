@@ -7,7 +7,7 @@ from read_db import create_master, open_db
 
 # Import the database from db
 out = create_master(conn=open_db())
-df = pd.DataFrame(out, columns=['releaseKey', 'typeID', 'metadata', 'tag'])
+df = pd.DataFrame(out, columns=['releaseKey', 'typeID', 'metadata'])
 
 # Remove unnecessary data from metadata
 eliminate = [1, 4, 5, 6, 7, 10, 19, 47, 1377, 1378, 1421, 1422, 1423, 1424, 3465, 3466]
