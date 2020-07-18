@@ -19,3 +19,9 @@ def create_master(conn=open_db()):
                    FROM GameLinks
 				   JOIN GamePieces ON GameLinks.releaseKey = GamePieces.releaseKey""")
     return cur.fetchall()
+
+
+def create_tag(conn=open_db()):
+    cur = conn.cursor()
+    cur.execute("""SELECT releaseKey, tag FROM UserReleaseTags""")
+    return cur.fetchall()
