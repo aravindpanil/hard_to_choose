@@ -53,7 +53,7 @@
   "nwii": "Wii",
   "nwiiu": "Wii U",
   "oculus": "Oculus",
-  "origin": "Origin",
+  "origin": "Origin Premiere",
   "paradox": "Paradox Plaza",
   "pathofexile": "Path of Exile",
   "pce": "PC Engine",
@@ -85,6 +85,6 @@
   "weplay": "WePlay",
   "winstore": "Windows Store",
   "xboxog": "Xbox",
-  "xboxone": "Xbox Live",
+  "xboxone": "Xbox Gamepass",
   "zx": "ZX Spectrum PC"
 }
