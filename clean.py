@@ -179,3 +179,15 @@ df = remove_hidden(hidden.loc[(hidden['dlc'] == 1) | (hidden['visible'] == 0), '
 df = remove_hidden(df.loc[~df['releaseKey'].isin(user_hidden['releaseKey']), 'releaseKey'], df)
 df = remove_hidden(user_hidden.loc[user_hidden['hidden'] == 1, 'releaseKey'], df)
 df.reset_index(drop=True, inplace=True)
+
+
+def remove_exceptions_manual(data):
+    with open('hidden.txt') as f:
+        temp = f.readlines()
+
+    temp = [x.strip() for x in temp]
+    data = data[~data['releaseKey'].isin(temp)]
+    return data
+
+
+df = remove_exceptions_manual(df)
