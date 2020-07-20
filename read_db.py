@@ -13,7 +13,7 @@ def open_db():
     return conn
 
 
-def create_master(conn=open_db()):
+def import_master(conn=open_db()):
     cur = conn.cursor()
     cur.execute("""SELECT GamePieces.releaseKey, GamePieces.gamePieceTypeId, GamePieces.value
     FROM GameLinks
@@ -21,7 +21,19 @@ def create_master(conn=open_db()):
     return cur.fetchall()
 
 
-def create_tag(conn=open_db()):
+def import_tag(conn=open_db()):
     cur = conn.cursor()
     cur.execute("""SELECT releaseKey, tag FROM UserReleaseTags""")
+    return cur.fetchall()
+
+
+def import_hidden(conn=open_db()):
+    cur = conn.cursor()
+    cur.execute("""SELECT releaseKey, isDlc, isVisibleInLibrary FROM ReleaseProperties""")
+    return cur.fetchall()
+
+
+def import_user_hidden(conn=open_db()):
+    cur = conn.cursor()
+    cur.execute("""SELECT releaseKey, isHidden FROM UserReleaseProperties""")
     return cur.fetchall()
