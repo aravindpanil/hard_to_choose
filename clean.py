@@ -181,6 +181,7 @@ df = remove_hidden(user_hidden.loc[user_hidden['hidden'] == 1, 'releaseKey'], df
 df.reset_index(drop=True, inplace=True)
 
 
+# Remove Exception games hidden manually by entering releaseKey in hidden.txt
 def remove_exceptions_manual(data):
     with open('hidden.txt') as f:
         temp = f.readlines()
