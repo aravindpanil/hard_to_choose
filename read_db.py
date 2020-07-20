@@ -16,8 +16,8 @@ def open_db():
 def create_master(conn=open_db()):
     cur = conn.cursor()
     cur.execute("""SELECT GamePieces.releaseKey, GamePieces.gamePieceTypeId, GamePieces.value
-                   FROM GameLinks
-				   JOIN GamePieces ON GameLinks.releaseKey = GamePieces.releaseKey""")
+    FROM GameLinks
+	JOIN GamePieces ON GameLinks.releaseKey = GamePieces.releaseKey""")
     return cur.fetchall()
 
 
