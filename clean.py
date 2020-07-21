@@ -206,6 +206,13 @@ def format_xbox(data):
     data = data[1:]
     data.columns = new_header
     data.reset_index(drop=True, inplace=True)
+
+    # Remove Xbox Games and unnecessary columns from the list
+    data = data.drop(['Metacritic', 'Genre (Giantbomb)', 'Completion', 'Age', 'Release', 'Months'], axis=1).reset_index(
+        drop=True)
+    data = data[~(data['System'] == 'Xbox One')]
+    data = data.drop(['System'], axis=1).reset_index(drop=True)
+
     return data
 
 
