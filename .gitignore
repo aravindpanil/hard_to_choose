@@ -134,3 +134,4 @@ dmypy.json
 
 /hidden.txt
 /out1.csv
+/pygsheet*.json

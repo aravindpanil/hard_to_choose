@@ -4,6 +4,7 @@ import re
 import pandas as pd
 
 import read_db
+import xbox_spreadsheet
 
 # Import DB into Python
 df = pd.DataFrame(read_db.import_master(conn=read_db.open_db()), columns=['releaseKey', 'typeID', 'metadata'])
@@ -13,7 +14,7 @@ df = pd.DataFrame(read_db.import_master(conn=read_db.open_db()), columns=['relea
 def remove_metadata(data):
     eliminate = [1, 4, 5, 6, 7, 10, 19, 47, 1377, 1378, 1421, 1422, 1423, 1424, 3465, 3466]
 
-    # Remove any rows whose metadata type was in eliminate since they were not needdedd
+    # Remove any rows whose metadata type was in eliminate since they were not needed
     return (data[~data['typeID'].isin(eliminate)]).reset_index(drop=True)
 
 
@@ -192,3 +193,20 @@ def remove_exceptions_manual(data):
 
 
 df = remove_exceptions_manual(df)
+
+# Import Xbox Gamepass from Masterlist Google Sheet
+xdf = xbox_spreadsheet.import_xbox_gsheet()
+
+
+def format_xbox(data):
+    data = pd.DataFrame(data[0], columns=data[1]).reset_index(drop=True)
+
+    # Remove the header and make the first row as header
+    new_header = data.iloc[0]
+    data = data[1:]
+    data.columns = new_header
+    data.reset_index(drop=True, inplace=True)
+    return data
+
+
+xdf = format_xbox(xdf)
