@@ -280,3 +280,17 @@ def import_origin():
 
 
 odf = import_origin()
+
+
+# Group games owned on multiple platforms
+def group_platform(data):
+    temp = data.groupby(['Title'], as_index=False).agg({'Platform': '; '.join})
+    data = data.merge(temp, how='inner', left_on=['Title'], right_on=['Title'])
+    data = data.drop('Platform_x', axis=1)
+    data = data.drop_duplicates(subset=['Title', 'Platform_y'], keep='last')
+    data = data.reset_index(drop=True)
+    data = data.rename(columns={"Platform_y": "Platform"})
+    return data
+
+
+df = group_platform(df)
