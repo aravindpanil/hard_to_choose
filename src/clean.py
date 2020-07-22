@@ -4,7 +4,7 @@ import re
 
 import pandas as pd
 
-from src import read_db, xbox_spreadsheet
+from src import read_db, xbox_spreadsheet, origin_parse
 
 os.chdir('D:\Projects\hard_to_choose\src')
 
@@ -268,3 +268,15 @@ def remove_xboxgamepass(data, xdata):
 
 
 df = remove_xboxgamepass(df, xdf)
+
+
+# Import Origin Access Games Database
+def import_origin():
+    basic, premiere = origin_parse.origin_games()
+    data = pd.DataFrame(basic, columns=['Title', 'Subscription'])
+    data = data.append(pd.DataFrame(premiere, columns=data.columns))
+    data = data.sort_values('Title').reset_index(drop=True)
+    return data
+
+
+odf = import_origin()
