@@ -23,6 +23,3 @@ def origin_games():
     premiere = final[0]
     premiere_out = [[item, 'Premiere'] for item in premiere]
     return basic_out, premiere_out
-
-
-origin_games()
