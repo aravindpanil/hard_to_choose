@@ -1,10 +1,14 @@
 import json
+import os
 import re
 
 import pandas as pd
 
 import read_db
+# Import Other classes
 import xbox_spreadsheet
+
+os.chdir('D:\Projects\hard_to_choose')
 
 # Import DB into Python
 df = pd.DataFrame(read_db.import_master(conn=read_db.open_db()), columns=['releaseKey', 'typeID', 'metadata'])
@@ -38,33 +42,41 @@ def split_metadata(data):
 
 df = split_metadata(df)
 
+# Remove the brackets
+df['title'] = df['title'].apply(lambda x: x[10:-2])
+
 
 # Format title to remove brackets and certain keywords
-def format_title(data):
-    # Remove the brackets
-    data['title'] = data['title'].apply(lambda x: x[10:-2])
+def format_title(data, column):
+    # Remove trademark and copyright
+    data[column] = data[column].str.replace('\u2122|\u00AE', '')
 
-    # Remove unnecessary characters like trademark, copyright, Windows 10 etc
-    remove_strings = [' - Windows 10', 'for Windows 10', '\u2122', '\u00AE', 'Windows 10', ]
+    # Remove all text within a bracket
+    data[column] = data[column].str.replace('\(.*\)', '')
 
-    def remove_keywords(x):
-        for i in remove_strings:
-            x = x.replace(i, '')
-        return x
+    # Generate Regex Expression with Keywords from keywords.txt
+    with open('keywords.txt') as f:
+        remove_strings = f.read().splitlines()
+    pattern = '|'.join(remove_strings)
 
-    data['title'] = data['title'].apply(remove_keywords)
-    data['title'] = data['title'].apply(lambda x: x.replace('The ', ''))
-    data = data.sort_values('title')
+    # Remove all words with titles that contain keywords from keywords.txt
+    data[column] = data[column].str.replace(pattern, '', case=False)
+
+    # Remove trailing hyphens, colons and spaces
+    df[column] = df[column].str.strip()
+    data[column] = data[column].str.replace('(-|:)$', '')
+    df[column] = df[column].str.strip()
     return data
 
 
-df = format_title(df)
+df = format_title(df, 'title')
+df.reset_index(drop=True, inplace=True)
+
 
 # Extract Date from meta and delete meta
-date_pattern = 'releaseDate\":(\d{9,10})'
-
-
 def extract_date(data):
+    date_pattern = 'releaseDate\":(\d{9,10})'
+
     def format_date(x):
         date = re.search(date_pattern, x)
         if date:
@@ -171,6 +183,7 @@ hidden = pd.DataFrame(read_db.import_hidden(conn=read_db.open_db()), columns=['r
 user_hidden = pd.DataFrame(read_db.import_user_hidden(conn=read_db.open_db()), columns=['releaseKey', 'hidden'])
 
 
+# Remove games marked as DLC or hidden
 def remove_hidden(x, data):
     return data[~data['releaseKey'].isin(x)]
 
@@ -182,17 +195,16 @@ df = remove_hidden(user_hidden.loc[user_hidden['hidden'] == 1, 'releaseKey'], df
 df.reset_index(drop=True, inplace=True)
 
 
-# Remove Exception games hidden manually by entering releaseKey in hidden.txt
-def remove_exceptions_manual(data):
+# Remove games manually added by reading hidden.txt
+def remove_manually_hidden(data):
     with open('hidden.txt') as f:
-        temp = f.readlines()
-
-    temp = [x.strip() for x in temp]
-    data = data[~data['releaseKey'].isin(temp)]
+        hidden_games = f.read().splitlines()
+    data = data[~data['releaseKey'].isin(hidden_games)]
     return data
 
 
-df = remove_exceptions_manual(df)
+df = remove_manually_hidden(df)
+df.reset_index(drop=True, inplace=True)
 
 # Import Xbox Gamepass from Masterlist Google Sheet
 xdf = xbox_spreadsheet.import_xbox_gsheet()
@@ -217,3 +229,41 @@ def format_xbox(data):
 
 
 xdf = format_xbox(xdf)
+
+# Rename Columns
+df = df.rename(columns={"title": "Title", "date": "Release", "platform": "Platform"})
+xdf = xdf.rename(columns={"Game": "Title"})
+df.reset_index(drop=True, inplace=True)
+xdf.reset_index(drop=True, inplace=True)
+
+# Format Xbox Gamepass List Titles
+xdf = format_title(xdf, 'Title')
+
+
+# Remove games in main DB but not in Xbox Gamepass (Removed or Coming Soon)
+def remove_xboxgamepass(data, xdata):
+    temp = data.loc[df['Platform'] == 'Xbox Gamepass'].copy()
+    xtemp = xdata.loc[xdf['Status'].str.match(r'Active|Leaving Soon')].copy()
+
+    # Temporarily remove special characters and convert to lowercase for comparison
+    def temp_format_xbox(x):
+        x = x.lower()
+        x = re.sub('(\w+\s+edition)', '', x)
+        x = re.sub('[^A-Za-z0-9]+', '', x)
+        x = re.sub('iii', '3', x)
+        x = re.sub('ii', '2', x)
+        x = re.sub('adeventure', 'adventure', x)
+        x = x.strip()
+        return x
+
+    temp['Title'] = temp['Title'].apply(temp_format_xbox)
+    xtemp['Title'] = xtemp['Title'].apply(temp_format_xbox)
+
+    # Fetch index of all the games in main database but not in Xbox Gamepass list and delete them
+    out = temp[~temp['Title'].isin(xtemp['Title'])].index
+    data.drop(out, inplace=True)
+    data.reset_index(drop=True, inplace=True)
+    return data
+
+
+df = remove_xboxgamepass(df, xdf)
