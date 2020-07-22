@@ -132,6 +132,7 @@ dmypy.json
 #Pycharm project settings
 .idea/
 
+#Manual Additions
 /src/TXT/hidden.txt
-/out1.csv
-/pygsheet*.json
+/*.csv
+/src/pygsheet*.json
