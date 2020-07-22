@@ -4,11 +4,12 @@ import re
 
 import pandas as pd
 
-import read_db
-# Import Other classes
-import xbox_spreadsheet
+from src import read_db, xbox_spreadsheet
 
-os.chdir('D:\Projects\hard_to_choose')
+os.chdir('D:\Projects\hard_to_choose\src')
+
+# Import Other classes
+
 
 # Import DB into Python
 df = pd.DataFrame(read_db.import_master(conn=read_db.open_db()), columns=['releaseKey', 'typeID', 'metadata'])
@@ -55,7 +56,7 @@ def format_title(data, column):
     data[column] = data[column].str.replace('\(.*\)', '')
 
     # Generate Regex Expression with Keywords from keywords.txt
-    with open('keywords.txt') as f:
+    with open('TXT/keywords.txt') as f:
         remove_strings = f.read().splitlines()
     pattern = '|'.join(remove_strings)
 
@@ -197,7 +198,7 @@ df.reset_index(drop=True, inplace=True)
 
 # Remove games manually added by reading hidden.txt
 def remove_manually_hidden(data):
-    with open('hidden.txt') as f:
+    with open('TXT/hidden.txt') as f:
         hidden_games = f.read().splitlines()
     data = data[~data['releaseKey'].isin(hidden_games)]
     return data

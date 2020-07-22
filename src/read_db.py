@@ -7,7 +7,7 @@ def open_db():
     conn = None
     try:
         conn = sqlite3.connect(default_db)
-    except Error as e:
+    except sqlite3.Error as e:
         print(e)
 
     return conn
