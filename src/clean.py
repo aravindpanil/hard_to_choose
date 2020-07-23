@@ -298,3 +298,40 @@ def group_platform(data):
 
 
 df = group_platform(df)
+
+
+# Tag Games which don't have tag manually by reading from tag.txt
+def manual_tagging(data):
+    with open('TXT/tag.txt') as f:
+        row = f.read().split('\n')
+        for i in row:
+            col = i.split(',')
+            data.loc[data['Title'].str.contains(col[0]), 'Length'] = col[1]
+            data.loc[data['Title'].str.contains(col[0]), 'Status'] = col[2]
+    return data
+
+
+df = manual_tagging(df)
+
+# Write final output to excel
+os.chdir('../excel')
+dbase_dict = {'Games': df, 'Xbox Gamepass': xdf, 'Origin Access': odf}
+
+
+def write_excel(data_dict):
+    filename = 'Games.xlsx'
+    writer = pd.ExcelWriter(filename, engine='xlsxwriter')
+    for sheetname, db in data_dict.items():  # loop through `dict` of dataframes
+        db.to_excel(writer, sheet_name=sheetname, index=False)  # send df to writer
+        worksheet = writer.sheets[sheetname]  # pull worksheet object
+        for idx, col in enumerate(db):  # loop through all columns
+            series = db[col]
+            max_len = max((
+                series.astype(str).map(len).max(),  # len of largest item
+                len(str(series.name))  # len of column name/header
+            )) + 1  # adding a little extra space
+            worksheet.set_column(idx, idx, max_len)  # set column width
+    writer.save()
+
+
+write_excel(dbase_dict)
