@@ -66,6 +66,10 @@ def format_title(data, column):
     # Remove trailing hyphens, colons and spaces
     df[column] = df[column].str.strip()
     data[column] = data[column].str.replace('(-|:)$', '')
+    data[column] = data[column].str.replace('^The ', '')
+    data[column] = data[column].str.replace('’', '\'')
+    data[column] = data[column].str.replace('The', 'the')
+    data[column] = data[column].str.replace('At', 'at')
     df[column] = df[column].str.strip()
     return data
 
