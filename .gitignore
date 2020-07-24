@@ -76,7 +76,6 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
-*.ipynb
 
 # IPython
 profile_default/
@@ -133,6 +132,6 @@ dmypy.json
 .idea/
 
 #Manual Additions
-/src/TXT/hidden.txt
+/data/hidden.txt
 /*.csv
 /src/pygsheet*.json
