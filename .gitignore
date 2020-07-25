@@ -132,6 +132,6 @@ dmypy.json
 .idea/
 
 #Manual Additions
-/data/hidden.txt
 /*.csv
 /src/pygsheet*.json
+/excel/

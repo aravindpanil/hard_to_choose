@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import sqlite3
 
@@ -188,10 +189,11 @@ def format_titles(db, column):
 main_db = format_titles(main_db, 'title')
 ########################################################################################################################
 
-"""Remove duplicates which have same title and platform"""
+"""Remove duplicates by various categories"""
 
 
 def remove_duplicates(db):
+    """Remove duplicates by various categories"""
     # Delete rows with same title and platform
     db = db.drop_duplicates(subset=['title', 'platform'], keep='last').reset_index(drop=True)
 
@@ -210,7 +212,9 @@ main_db = remove_duplicates(main_db)
 
 
 def create_tag(db):
-    # Import tags database
+    """Extracts tags from UserRelease and formats them into Length and Status"""
+
+    # Import Tag Database
     tag_db_query = 'SELECT releaseKey, tag FROM UserReleaseTags'
     tag_db = import_database_from_sql(tag_db_query, global_imports.main_db_path)
     temp = db.merge(tag_db, how='left', left_on=['releaseKey'], right_on=['releaseKey'])
@@ -244,6 +248,8 @@ main_db = create_tag(main_db)
 
 
 def format_xbox(db):
+    """Import Xbox Gamepass Details from Xbox Gamepass Masterlist in r/XboxGamePass subreddit"""
+
     db = pd.DataFrame(db[0], columns=db[1]).reset_index(drop=True)
 
     # Remove the header and make the first row as header
@@ -268,6 +274,8 @@ xbox_db = format_titles(xbox_db, 'Game')
 
 
 def remove_xboxgamepass(db, xdb):
+    """Games removed from GP are still in main_db. Delete them"""
+
     temp = db.loc[db['platform'] == 'Xbox Gamepass'].copy()
     xtemp = xdb.loc[xdb['Status'].str.match(r'Active|Leaving Soon')].copy()
 
@@ -319,3 +327,70 @@ xbox_db = xbox_db.rename(columns={"Game": "Title"})
 main_db.reset_index(drop=True, inplace=True)
 xbox_db.reset_index(drop=True, inplace=True)
 ########################################################################################################################
+
+"""Group games owned on multiple platforms"""
+
+
+def group_platform(db):
+    """Group games owned in multiple platforms to one row"""
+
+    temp = db.groupby('Title').agg({'Platform': '; '.join})
+    db = db.merge(temp, how='inner', left_on=['Title'], right_on=['Title'])
+    db = db.drop('Platform_x', axis=1)
+    db = db.drop_duplicates(subset=['Title', 'Platform_y'], keep='last')
+    db = db.reset_index(drop=True)
+    db = db.rename(columns={"Platform_y": "Platform"})
+    return db
+
+
+main_db = group_platform(main_db)
+########################################################################################################################
+
+"""Manually tag glitched tags"""
+
+
+def manual_tagging(db):
+    """Some tags are glitched. Add Game title, Status Tag and length to data/tag"""
+
+    with open('data/tag.txt') as f:
+        row = f.read().split('\n')
+        for i in row:
+            col = i.split(',')
+            db.loc[db['Title'].str.contains(col[0]), 'Length'] = col[1]
+            db.loc[db['Title'].str.contains(col[0]), 'Status'] = col[2]
+    return db
+
+
+main_db = manual_tagging(main_db)
+
+# Sort values by Title ignoring case
+main_db['Upper'] = main_db['Title'].str.upper()
+main_db.sort_values(by='Upper', inplace=True)
+del main_db['Upper']
+########################################################################################################################
+
+"""Write output to excel"""
+
+os.chdir('excel')
+dbase_dict = {'Games': main_db, 'Xbox Gamepass': xbox_db, 'Origin Access': origin_db}
+
+
+def write_excel(data_dict):
+    """Export main_db, xbox_db and origin_db to excel/Games.xlsx and auto adjust column width"""
+
+    filename = 'Games.xlsx'
+    writer = pd.ExcelWriter(filename, engine='xlsxwriter')
+    for sheetname, db in data_dict.items():  # loop through `dict` of dataframes
+        db.to_excel(writer, sheet_name=sheetname, index=False)  # send df to writer
+        worksheet = writer.sheets[sheetname]  # pull worksheet object
+        for idx, col in enumerate(db):  # loop through all columns
+            series = db[col]
+            max_len = max((
+                series.astype(str).map(len).max(),  # len of largest item
+                len(str(series.name))  # len of column name/header
+            )) + 1  # adding a little extra space
+            worksheet.set_column(idx, idx, max_len)  # set column width
+    writer.save()
+
+
+write_excel(dbase_dict)
