@@ -152,3 +152,36 @@ def remove_manual_hidden_games_by_user(db):
 
 
 main_db = remove_manual_hidden_games_by_user(main_db)
+########################################################################################################################
+
+"""Remove brackets and quotes around title"""
+
+main_db['title'] = main_db['title'].apply(lambda x: x[10:-2])
+
+
+def format_titles(db, column):
+    """Format Title by removing special and unicode characters like trademark"""
+
+    # Remove Trademark and Copyright Symbols
+    db[column] = db[column].str.replace('\u2122|\u00AE', '')
+
+    # Remove Windows, Windows 10 and any word before it. for Windows 10, - Windows 10 would be removed
+    db[column] = db[column].str.replace('\S+ Windows(?: 10)?', '')
+
+    # Remove special apostrophe
+    db[column] = db[column].str.replace('’', '')
+
+    # Make any game with The in the middle of the sentence lower case
+    db[column] = db[column].str.replace('\sthe\s', ' the ', flags=re.IGNORECASE)
+
+    # Remove the at the beginning of the word
+    db[column] = db[column].str.replace('^The\s', '')
+
+    # Make any game with at in the middle of the sentence lower case
+    db[column] = db[column].str.replace('\sat\s', ' at ', flags=re.IGNORECASE)
+    db[column] = db[column].str.strip()
+
+    return db
+
+
+format_titles(main_db, 'title')
