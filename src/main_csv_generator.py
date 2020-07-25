@@ -189,4 +189,15 @@ main_db = format_titles(main_db, 'title')
 
 """Remove duplicates which have same title and platform"""
 
-main_db = main_db.drop_duplicates(subset=['title', 'platform'], keep='first')
+
+def remove_duplicates(db):
+    # Delete rows with same title and platform
+    db = db.drop_duplicates(subset=['title', 'platform'], keep='last').reset_index(drop=True)
+
+    # Delete rows with same title in 'Other' Platform
+    dup = db[db.duplicated(subset=['title'], keep=False)].sort_values('title')
+    db = db.drop(dup[dup['platform'].str.match('Other')].index).reset_index(drop=True)
+    return db
+
+
+main_db = remove_duplicates(main_db)
