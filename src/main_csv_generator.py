@@ -184,7 +184,7 @@ def format_titles(db, column):
     return db
 
 
-format_titles(main_db, 'title')
+main_db = format_titles(main_db, 'title')
 ########################################################################################################################
 
 """Remove duplicates which have same title and platform"""
