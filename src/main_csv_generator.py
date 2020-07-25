@@ -91,8 +91,8 @@ main_db = extract_date(main_db)
 
 
 def create_platform(db):
-    """Extraction of platform by reading json from data/platform.json""" \
- \
+    """Extraction of platform by reading json from data/platform.json"""
+
     # Read the json file
     with open(global_imports.platforms_json) as platform_file:
         platform = json.load(platform_file)
@@ -117,17 +117,38 @@ main_db = create_platform(main_db)
 """Delete games from ReleaseProperties"""
 
 
-def remove_hidden_games(db):
+def remove_hidden_games_by_gog(db):
+    """Imports ReleaseProperties and deletes any games marked as hidden or DLC"""
+
     hidden_db_query = 'SELECT releaseKey, isDlc, isVisibleInLibrary FROM ReleaseProperties'
     hidden_db = import_database_from_sql(hidden_db_query, global_imports.main_db_path)
 
-    # Merge is on left because every releaseKey in main_db is present in hidden_db
-    db = db.merge(hidden_db, how='left', on='releaseKey')
-
     # Delete everything marked as DLC or not visible in library
-    db = db.drop(db[(db['isVisibleInLibrary'] == 0) | (db['isDlc'] == 1)].index)
-
+    db = db[~db['releaseKey'].isin(hidden_db.loc[hidden_db['isVisibleInLibrary'] == 0, 'releaseKey'])]
+    db = db[~db['releaseKey'].isin(hidden_db.loc[hidden_db['isDlc'] == 1, 'releaseKey'])]
+    db = db.reset_index(drop=True)
     return db
 
 
-main_db = remove_hidden_games(main_db)
+main_db = remove_hidden_games_by_gog(main_db)
+########################################################################################################################
+
+"""Remove games marked as DLC and hidden by user"""
+
+
+def remove_manual_hidden_games_by_user(db):
+    """Imports UserReleaseProperties and deletes any games marked as hidden or not in table"""
+
+    user_hidden_db_query = 'SELECT releaseKey, isHidden FROM UserReleaseProperties'
+    user_hidden_db = import_database_from_sql(user_hidden_db_query, global_imports.main_db_path)
+
+    # Remove games in main_db but not in user_hidden_db as these were never owned
+    db = db.drop(db[~db['releaseKey'].isin(user_hidden_db['releaseKey'])].index)
+
+    # Remove all games marked hidden
+    db = db[~db['releaseKey'].isin(user_hidden_db.loc[user_hidden_db['isHidden'] == 1, 'releaseKey'])]
+    db = db.reset_index(drop=True)
+    return db
+
+
+main_db = remove_manual_hidden_games_by_user(main_db)
