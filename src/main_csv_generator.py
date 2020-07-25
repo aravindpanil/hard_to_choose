@@ -90,9 +90,10 @@ main_db = extract_date(main_db)
 """Extract platform from releaseKey and add it as a row"""
 
 
-# Read the json file
 def create_platform(db):
-    """Extraction of platform by reading json from data/platform.json"""
+    """Extraction of platform by reading json from data/platform.json""" \
+ \
+    # Read the json file
     with open(global_imports.platforms_json) as platform_file:
         platform = json.load(platform_file)
 
@@ -112,3 +113,21 @@ def create_platform(db):
 
 main_db = create_platform(main_db)
 ########################################################################################################################
+
+"""Delete games from ReleaseProperties"""
+
+
+def remove_hidden_games(db):
+    hidden_db_query = 'SELECT releaseKey, isDlc, isVisibleInLibrary FROM ReleaseProperties'
+    hidden_db = import_database_from_sql(hidden_db_query, global_imports.main_db_path)
+
+    # Merge is on left because every releaseKey in main_db is present in hidden_db
+    db = db.merge(hidden_db, how='left', on='releaseKey')
+
+    # Delete everything marked as DLC or not visible in library
+    db = db.drop(db[(db['isVisibleInLibrary'] == 0) | (db['isDlc'] == 1)].index)
+
+    return db
+
+
+main_db = remove_hidden_games(main_db)
