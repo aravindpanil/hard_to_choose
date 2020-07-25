@@ -53,8 +53,8 @@ def split_metadata_into_columns(column_list, db):
     db = db.drop(['value', 'gamePieceTypeId'], axis=1)
 
     # Group by releaseKey since the data is in its own rows. Fill row with NAN if every row is NAN
-    db = db.groupby('releaseKey', as_index=True).agg(lambda x: np.nan if x.isnull().all() else x.dropna()) \
-        .reset_index(drop=True).reset_index()
+    db = db.groupby('releaseKey', as_index=True).agg(lambda x: np.nan if x.isnull().all() else x.dropna()).reset_index()
+    db = db.set_index(np.arange(1, len(db) + 1))
     return db
 
 
@@ -201,3 +201,38 @@ def remove_duplicates(db):
 
 
 main_db = remove_duplicates(main_db)
+########################################################################################################################
+
+"""Extracts tags from UserRelease and formats them into Length and Status"""
+
+
+def create_tag(db):
+    # Import tags database
+    tag_db_query = 'SELECT releaseKey, tag FROM UserReleaseTags'
+    tag_db = import_database_from_sql(tag_db_query, global_imports.main_db_path)
+    temp = db.merge(tag_db, how='left', left_on=['releaseKey'], right_on=['releaseKey'])
+
+    def create_status(x):
+        pattern = re.compile(r"S - (\w+)")
+        if pattern.match(x):
+            return pattern.match(x).group(1)
+        return np.nan
+
+    def create_length(x):
+        pattern = re.compile(r"L - (\w+)")
+        if pattern.match(x):
+            return pattern.match(x).group(1)
+        return np.nan
+
+    # Create Status and Length as two separate Columns
+    temp['tag'] = temp['tag'].fillna('No tag')
+    temp['Status'] = temp['tag'].apply(create_status)
+    temp['Length'] = temp['tag'].apply(create_length)
+    temp.drop(['tag'], axis=1, inplace=True)
+    temp = temp.groupby('releaseKey')[['Status', 'Length']].first().reset_index()
+    db = db.merge(temp, how='left', on='releaseKey')
+    return db
+
+
+main_db = create_tag(main_db)
+########################################################################################################################
