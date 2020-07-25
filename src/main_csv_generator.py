@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 import global_imports
+from src import xbox_spreadsheet, origin_parse
 
 
 def import_database_from_sql(sql_query, db_path):
@@ -197,6 +198,8 @@ def remove_duplicates(db):
     # Delete rows with same title in 'Other' Platform
     dup = db[db.duplicated(subset=['title'], keep=False)].sort_values('title')
     db = db.drop(dup[dup['platform'].str.match('Other')].index).reset_index(drop=True)
+    db = db[~db['title'].str.contains('trial$', flags=re.IGNORECASE)]
+
     return db
 
 
@@ -235,4 +238,84 @@ def create_tag(db):
 
 
 main_db = create_tag(main_db)
+########################################################################################################################
+
+"""Import Xbox Gamepass Games as a Dataframe"""
+
+
+def format_xbox(db):
+    db = pd.DataFrame(db[0], columns=db[1]).reset_index(drop=True)
+
+    # Remove the header and make the first row as header
+    new_header = db.iloc[0]
+    db = db[1:]
+    db.columns = new_header
+    db.reset_index(drop=True, inplace=True)
+
+    # Remove Xbox Games and unnecessary columns from the list
+    db = db.drop(['Metacritic', 'Genre (Giantbomb)', 'Completion', 'Age', 'Release', 'Months'], axis=1).reset_index(
+        drop=True)
+    db = db[~(db['System'] == 'Xbox One')]
+    db = db.drop(['System'], axis=1).reset_index(drop=True)
+    return db
+
+
+xbox_db = format_xbox(xbox_spreadsheet.import_xbox_gsheet())
+xbox_db = format_titles(xbox_db, 'Game')
+########################################################################################################################
+
+"""Remove games not in XboX Gamepass. Some games removed from GP is still in main_db"""
+
+
+def remove_xboxgamepass(db, xdb):
+    temp = db.loc[db['platform'] == 'Xbox Gamepass'].copy()
+    xtemp = xdb.loc[xdb['Status'].str.match(r'Active|Leaving Soon')].copy()
+
+    # Temporarily remove special characters and convert to lowercase for comparison
+    def temp_format_xbox(x):
+        x = x.lower()
+        x = re.sub('\s\(.*\)', '', x)
+        x = re.sub('\'', '', x)
+        x = re.sub(': (\w+\sedition)', '', x)
+        x = re.sub(': (\w+\scut)', '', x)
+        x = re.sub(' iii', '3', x)
+        x = re.sub(' ii', '2', x)
+        x = re.sub(' iv', '4', x)
+        x = re.sub(' ix', '9', x)
+        x = re.sub(' xv', '15', x)
+        x = re.sub('[^A-Za-z0-9]+', '', x)
+        return x
+
+    temp.loc[:, 'title'] = temp['title'].apply(temp_format_xbox)
+    xtemp.loc[:, 'Game'] = xtemp['Game'].apply(temp_format_xbox)
+
+    # Fetch index of all the games in main but not in Xbox Gamepass list and delete them
+    out = temp[~temp['title'].isin(xtemp['Game'])].index
+    db.drop(out, inplace=True)
+    db.reset_index(drop=True, inplace=True)
+    return db
+
+
+main_db = remove_xboxgamepass(main_db, xbox_db)
+########################################################################################################################
+
+"""Rename Columns and import Origin"""
+
+
+def import_origin():
+    """Import Origin Access Database by scraping from PCGamingWiki"""
+
+    basic, premiere = origin_parse.origin_games()
+    data = pd.DataFrame(basic, columns=['Title', 'Subscription'])
+    data = data.append(pd.DataFrame(premiere, columns=data.columns))
+    data = data.sort_values('Title').reset_index(drop=True)
+    return data
+
+
+origin_db = import_origin()
+
+main_db = main_db.rename(columns={"title": "Title", "date": "Release", "platform": "Platform"})
+xbox_db = xbox_db.rename(columns={"Game": "Title"})
+main_db.reset_index(drop=True, inplace=True)
+xbox_db.reset_index(drop=True, inplace=True)
 ########################################################################################################################
