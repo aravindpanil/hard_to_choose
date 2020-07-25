@@ -19,32 +19,13 @@ as arguments"""
     return db
 
 
-# Import GamePieceTypes table for mapping the types of data to extract from GamePieces
-game_piece_type_query = 'SELECT * FROM GamePieceTypes'
-game_piece_type = import_database_from_sql(game_piece_type_query, global_imports.main_db_path)
-
-# Import the GamePieces table which contains all the values about library games. Perform join on gamepieces to get the
-# metadata mapping
-main_db_query = """SELECT GamePieces.releaseKey, GamePieces.gamePieceTypeId, GamePieces.value
-    FROM GameLinks
-	JOIN GamePieces ON GameLinks.releaseKey = GamePieces.releaseKey"""
-main_db = import_database_from_sql(main_db_query, global_imports.main_db_path)
-########################################################################################################################
-
-"""Filter table for necessary metadata"""
-
-# Add any metadata needed to this list. Valid values are type names
-# from GamePieceTypes
-column_names = ['title', 'meta']
-
-
-def split_metadata_into_columns(column_list, db):
+def split_metadata_into_columns(column_list, db, gpt):
     """Splits metadata of the main_db into different rows. Arguments are a list of column_names
     and the dataframe"""
 
     # Creates columns for each item in column_list
     for val in column_list:
-        type_id = int(game_piece_type.loc[game_piece_type['type'] == val, 'id'])
+        type_id = int(gpt.loc[gpt['type'] == val, 'id'])
         db[val] = db.loc[db['gamePieceTypeId'] == type_id, 'value']
 
     # Drop rows that are null in all of the generated columns. This will remove every row that
@@ -58,12 +39,6 @@ def split_metadata_into_columns(column_list, db):
     db = db.groupby('releaseKey', as_index=True).agg(lambda x: np.nan if x.isnull().all() else x.dropna()).reset_index()
     db = db.set_index(np.arange(1, len(db) + 1))
     return db
-
-
-main_db = split_metadata_into_columns(column_names, main_db)
-########################################################################################################################
-
-"""Extract Date from meta"""
 
 
 def extract_date(db):
@@ -84,12 +59,6 @@ def extract_date(db):
     db['date'] = db['meta'].apply(format_date)
     db = db.drop('meta', axis=1)
     return db
-
-
-main_db = extract_date(main_db)
-########################################################################################################################
-
-"""Extract platform from releaseKey and add it as a row"""
 
 
 def create_platform(db):
@@ -113,12 +82,6 @@ def create_platform(db):
     return db
 
 
-main_db = create_platform(main_db)
-########################################################################################################################
-
-"""Delete games from ReleaseProperties"""
-
-
 def remove_hidden_games_by_gog(db):
     """Imports ReleaseProperties and deletes any games marked as hidden or DLC"""
 
@@ -130,12 +93,6 @@ def remove_hidden_games_by_gog(db):
     db = db[~db['releaseKey'].isin(hidden_db.loc[hidden_db['isDlc'] == 1, 'releaseKey'])]
     db = db.reset_index(drop=True)
     return db
-
-
-main_db = remove_hidden_games_by_gog(main_db)
-########################################################################################################################
-
-"""Remove games marked as DLC and hidden by user"""
 
 
 def remove_manual_hidden_games_by_user(db):
@@ -151,14 +108,6 @@ def remove_manual_hidden_games_by_user(db):
     db = db[~db['releaseKey'].isin(user_hidden_db.loc[user_hidden_db['isHidden'] == 1, 'releaseKey'])]
     db = db.reset_index(drop=True)
     return db
-
-
-main_db = remove_manual_hidden_games_by_user(main_db)
-########################################################################################################################
-
-"""Remove brackets and quotes around title"""
-
-main_db['title'] = main_db['title'].apply(lambda x: x[10:-2])
 
 
 def format_titles(db, column):
@@ -186,12 +135,6 @@ def format_titles(db, column):
     return db
 
 
-main_db = format_titles(main_db, 'title')
-########################################################################################################################
-
-"""Remove duplicates by various categories"""
-
-
 def remove_duplicates(db):
     """Remove duplicates by various categories"""
     # Delete rows with same title and platform
@@ -203,12 +146,6 @@ def remove_duplicates(db):
     db = db[~db['title'].str.contains('trial$', flags=re.IGNORECASE)]
 
     return db
-
-
-main_db = remove_duplicates(main_db)
-########################################################################################################################
-
-"""Extracts tags from UserRelease and formats them into Length and Status"""
 
 
 def create_tag(db):
@@ -241,12 +178,6 @@ def create_tag(db):
     return db
 
 
-main_db = create_tag(main_db)
-########################################################################################################################
-
-"""Import Xbox Gamepass Games as a Dataframe"""
-
-
 def format_xbox(db):
     """Import Xbox Gamepass Details from Xbox Gamepass Masterlist in r/XboxGamePass subreddit"""
 
@@ -264,13 +195,6 @@ def format_xbox(db):
     db = db[~(db['System'] == 'Xbox One')]
     db = db.drop(['System'], axis=1).reset_index(drop=True)
     return db
-
-
-xbox_db = format_xbox(xbox_spreadsheet.import_xbox_gsheet())
-xbox_db = format_titles(xbox_db, 'Game')
-########################################################################################################################
-
-"""Remove games not in XboX Gamepass. Some games removed from GP is still in main_db"""
 
 
 def remove_xboxgamepass(db, xdb):
@@ -304,12 +228,6 @@ def remove_xboxgamepass(db, xdb):
     return db
 
 
-main_db = remove_xboxgamepass(main_db, xbox_db)
-########################################################################################################################
-
-"""Rename Columns and import Origin"""
-
-
 def import_origin():
     """Import Origin Access Database by scraping from PCGamingWiki"""
 
@@ -318,17 +236,6 @@ def import_origin():
     data = data.append(pd.DataFrame(premiere, columns=data.columns))
     data = data.sort_values('Title').reset_index(drop=True)
     return data
-
-
-origin_db = import_origin()
-
-main_db = main_db.rename(columns={"title": "Title", "date": "Release", "platform": "Platform"})
-xbox_db = xbox_db.rename(columns={"Game": "Title"})
-main_db.reset_index(drop=True, inplace=True)
-xbox_db.reset_index(drop=True, inplace=True)
-########################################################################################################################
-
-"""Group games owned on multiple platforms"""
 
 
 def group_platform(db):
@@ -343,12 +250,6 @@ def group_platform(db):
     return db
 
 
-main_db = group_platform(main_db)
-########################################################################################################################
-
-"""Manually tag glitched tags"""
-
-
 def manual_tagging(db):
     """Some tags are glitched. Add Game title, Status Tag and length to data/tag"""
 
@@ -359,20 +260,6 @@ def manual_tagging(db):
             db.loc[db['Title'].str.contains(col[0]), 'Length'] = col[1]
             db.loc[db['Title'].str.contains(col[0]), 'Status'] = col[2]
     return db
-
-
-main_db = manual_tagging(main_db)
-
-# Sort values by Title ignoring case
-main_db['Upper'] = main_db['Title'].str.upper()
-main_db.sort_values(by='Upper', inplace=True)
-del main_db['Upper']
-########################################################################################################################
-
-"""Write output to excel"""
-
-os.chdir('excel')
-dbase_dict = {'Games': main_db, 'Xbox Gamepass': xbox_db, 'Origin Access': origin_db}
 
 
 def write_excel(data_dict):
@@ -393,4 +280,85 @@ def write_excel(data_dict):
     writer.save()
 
 
-write_excel(dbase_dict)
+def main():
+    """Import mainDB based on GamePieceTypes and GamePieces"""
+
+    # Import GamePieceTypes table for mapping the types of data to extract from GamePieces
+    game_piece_type_query = 'SELECT * FROM GamePieceTypes'
+    game_piece_type = import_database_from_sql(game_piece_type_query, global_imports.main_db_path)
+
+    # Import the GamePieces table which contains all the values about library games. Perform join on gamepieces to
+    # get the metadata mapping
+    main_db_query = """SELECT GamePieces.releaseKey, GamePieces.gamePieceTypeId, GamePieces.value
+        FROM GameLinks
+    	JOIN GamePieces ON GameLinks.releaseKey = GamePieces.releaseKey"""
+    main_db = import_database_from_sql(main_db_query, global_imports.main_db_path)
+
+    """Split the metadata into columns and delete all other metadata"""
+
+    # Add any metadata needed to this list. Valid values are type names from GamePieceTypes
+    column_names = ['title', 'meta']
+    main_db = split_metadata_into_columns(column_names, main_db, game_piece_type)
+
+    """Extract Release Date of games from metadata"""
+    main_db = extract_date(main_db)
+
+    """Extract platform from releaseKey and add it as a row"""
+    main_db = create_platform(main_db)
+
+    """Some games are hidden by GOG in ReleaseProperties. Import the table and delete these games"""
+    main_db = remove_hidden_games_by_gog(main_db)
+
+    """Delete games hidden by the user from UserReleaseProperties"""
+    main_db = remove_manual_hidden_games_by_user(main_db)
+
+    """Remove brackets and quotes around title"""
+    main_db['title'] = main_db['title'].apply(lambda x: x[10:-2])
+
+    """Format the Title and remove special Characters, certain keywords"""
+    main_db = format_titles(main_db, 'title')
+
+    """Remove duplicates by various categories"""
+    main_db = remove_duplicates(main_db)
+
+    """Extracts tags from UserRelease and formats them into Length and Status"""
+    main_db = create_tag(main_db)
+
+    """Import Xbox Gamepass Games as a Dataframe"""
+    xbox_db = format_xbox(xbox_spreadsheet.import_xbox_gsheet())
+    # Format Xbox Gamepass DB Titles
+    xbox_db = format_titles(xbox_db, 'Game')
+
+    """Remove games not in XboX Gamepass. Some games removed from GP is still in main_db"""
+    main_db = remove_xboxgamepass(main_db, xbox_db)
+
+    """Rename Columns and import Origin"""
+    origin_db = import_origin()
+
+    main_db = main_db.rename(columns={"title": "Title", "date": "Release", "platform": "Platform"})
+    xbox_db = xbox_db.rename(columns={"Game": "Title"})
+    main_db.reset_index(drop=True, inplace=True)
+    xbox_db.reset_index(drop=True, inplace=True)
+
+    """Group games owned on multiple platforms"""
+    main_db = group_platform(main_db)
+
+    """Manually tag glitched tags"""
+    main_db = manual_tagging(main_db)
+
+    """Sort values by Title ignoring case"""
+    main_db['Upper'] = main_db['Title'].str.upper()
+    main_db.sort_values(by='Upper', inplace=True)
+    del main_db['Upper']
+
+    """Write output to excel"""
+    os.chdir('excel')
+    dbase_dict = {'Games': main_db, 'XboxGamepass': xbox_db, 'Origin Access': origin_db}
+    write_excel(dbase_dict)
+
+    print("Successfully generated DB. Total games - ", len(main_db.index))
+    return main_db
+
+
+if __name__ == '__main__':
+    main()

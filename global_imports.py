@@ -7,4 +7,4 @@ gtt_profile_name = 'Aravind'
 gtt_db_path = os.path.join('C:', os.sep, 'ProgramData', 'Gameplay Time Tracker', 'Userdata', 'Profiles',
                            gtt_profile_name,
                            'GameplayTimeTracker.sqlite')
-platforms_json = 'data/platforms.json'
+platforms_json = os.path.join('data', 'platforms.json')
