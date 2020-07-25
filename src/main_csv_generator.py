@@ -185,3 +185,8 @@ def format_titles(db, column):
 
 
 format_titles(main_db, 'title')
+########################################################################################################################
+
+"""Remove duplicates which have same title and platform"""
+
+main_db = main_db.drop_duplicates(subset=['title', 'platform'], keep='first')
