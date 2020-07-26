@@ -280,6 +280,36 @@ def write_excel(data_dict):
     writer.save()
 
 
+def add_gameplay_time(db):
+    time_query = 'SELECT ProductName, StatTotalFullRuntime FROM Applications'
+    time_db = import_database_from_sql(time_query, global_imports.gtt_db_path)
+    db = db.merge(time_db, how='left', left_on='Title', right_on='ProductName')
+    db = db.drop('ProductName', axis=1)
+    db['StatTotalFullRuntime'] = db['StatTotalFullRuntime'].fillna(0)
+    db = db.rename(columns={"StatTotalFullRuntime": "GameplayTime"})
+
+    def convert_to_hours(x):
+        if x:
+
+            # The value of gameplay has additional zeroes. Remove zeroes and convert to minutes
+            x = x / (10000000 * 60)
+            hours = int(x / 60)
+            minutes = int(x % 60)
+
+            # Return output according to whether minutes or hours are zero
+            if hours and minutes:
+                return str(hours) + ' Hours ' + str(minutes) + ' Minutes'
+            elif hours:
+                return str(hours) + ' Hours'
+            elif minutes:
+                str(minutes) + ' Minutes'
+        else:
+            return 0
+
+    db['GameplayTime'] = db['GameplayTime'].apply(convert_to_hours)
+    return db
+
+
 def main():
     """Import mainDB based on GamePieceTypes and GamePieces"""
 
@@ -351,12 +381,20 @@ def main():
     main_db.sort_values(by='Upper', inplace=True)
     del main_db['Upper']
 
+    """Extract Gameplay from Gameplay Time Tracker and add it as a row"""
+    main_db = add_gameplay_time(main_db)
+
     """Write output to excel"""
     os.chdir('excel')
     dbase_dict = {'Games': main_db, 'XboxGamepass': xbox_db, 'Origin Access': origin_db}
     write_excel(dbase_dict)
 
     print("Successfully generated DB. Total games - ", len(main_db.index))
+
+    # Change Directory back to root
+    os.chdir('..')
+
+    # Return main_db when main function of main_csv_generator is called (example - randomizer_gui)
     return main_db
 
 
