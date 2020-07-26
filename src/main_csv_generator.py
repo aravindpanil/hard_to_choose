@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 import global_imports
-from src import xbox_spreadsheet, origin_parse
+from src import xbox_spreadsheet, origin_parse, write_to_excel, report
 
 
 def import_database_from_sql(sql_query, db_path):
@@ -262,25 +262,9 @@ def manual_tagging(db):
     return db
 
 
-def write_excel(data_dict):
-    """Export main_db, xbox_db and origin_db to excel/Games.xlsx and auto adjust column width"""
-
-    filename = 'Games.xlsx'
-    writer = pd.ExcelWriter(filename, engine='xlsxwriter')
-    for sheetname, db in data_dict.items():  # loop through `dict` of dataframes
-        db.to_excel(writer, sheet_name=sheetname, index=False)  # send df to writer
-        worksheet = writer.sheets[sheetname]  # pull worksheet object
-        for idx, col in enumerate(db):  # loop through all columns
-            series = db[col]
-            max_len = max((
-                series.astype(str).map(len).max(),  # len of largest item
-                len(str(series.name))  # len of column name/header
-            )) + 1  # adding a little extra space
-            worksheet.set_column(idx, idx, max_len)  # set column width
-    writer.save()
-
-
 def add_gameplay_time(db):
+    """Extract Gameplay time from Gameplay Time Tracker and add it as a row to the main database"""
+
     time_query = 'SELECT ProductName, StatTotalFullRuntime FROM Applications'
     time_db = import_database_from_sql(time_query, global_imports.gtt_db_path)
     db = db.merge(time_db, how='left', left_on='Title', right_on='ProductName')
@@ -308,6 +292,17 @@ def add_gameplay_time(db):
 
     db['GameplayTime'] = db['GameplayTime'].apply(convert_to_hours)
     return db
+
+
+def save_dataframe(dict_of_db):
+    """Removes old database, marks the new database as old and generates a new database as a new database"""
+
+    for key, value in dict_of_db.items():
+        old = 'data/' + str(key) + '_old'
+        new = 'data/' + str(key)
+        os.remove(old)
+        os.rename(new, old)
+        value.to_pickle(new)
 
 
 def main():
@@ -384,18 +379,15 @@ def main():
     """Extract Gameplay from Gameplay Time Tracker and add it as a row"""
     main_db = add_gameplay_time(main_db)
 
-    """Write output to excel"""
-    os.chdir('excel')
-    dbase_dict = {'Games': main_db, 'XboxGamepass': xbox_db, 'Origin Access': origin_db}
-    write_excel(dbase_dict)
+    """Replaces old dataframe and new dataframe with newer updates"""
+    db_list = {'main_db': main_db, 'xbox_db': xbox_db, 'origin_db': origin_db}
+    save_dataframe(db_list)
 
-    print("Successfully generated DB. Total games - ", len(main_db.index))
+    """Write database to excel"""
+    write_to_excel.main()
 
-    # Change Directory back to root
-    os.chdir('..')
-
-    # Return main_db when main function of main_csv_generator is called (example - randomizer_gui)
-    return main_db
+    """Call report function to generate log"""
+    report.main()
 
 
 if __name__ == '__main__':

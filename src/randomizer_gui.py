@@ -2,13 +2,11 @@ from tkinter import *
 
 import pandas as pd
 
-from src import main_csv_generator
-
 status_values = ['Backlog', 'Tried', 'Regret', 'Completed', 'Playing']
 length_values = ['Short', 'Long', 'Infinite']
 
-# Generate the main database
-db = pd.DataFrame(main_csv_generator.main())
+# Import the main database
+db = pd.read_pickle('data/main_db')
 
 
 class Randomizer:

@@ -137,3 +137,9 @@ dmypy.json
 /excel/
 /*.bat
 /*.ps1
+/data/*db
+
+/data/*db_old
+/data/lastrun.p
+/logs/
+/Runtime/*
