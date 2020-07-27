@@ -286,7 +286,7 @@ def add_gameplay_time(db):
             elif hours:
                 return str(hours) + ' Hours'
             elif minutes:
-                str(minutes) + ' Minutes'
+                return str(minutes) + ' Minutes'
         else:
             return 0
 
