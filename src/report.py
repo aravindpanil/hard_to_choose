@@ -50,6 +50,7 @@ def main():
         report_text += '\n'
         for i in added_title_list:
             report_text += str(i)
+            report_text += '\n'
 
     elif len(removed_title_list):
         report_text += 'Number of games removed since last run - '
@@ -60,6 +61,7 @@ def main():
         report_text += '\n'
         for i in removed_title_list:
             report_text += str(i)
+            report_text += '\n'
 
     else:
         report_text += 'No new games added since last run\n'
