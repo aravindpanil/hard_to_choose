@@ -148,6 +148,17 @@ def remove_duplicates(db):
     return db
 
 
+def remove_exclusions(db):
+    """Some Games cannot be removed but are just glitched by GOG. Manually removing them by entering names into
+    data/exclusions.txt"""
+
+    with open('data/exclusion.txt') as f:
+        row = f.read().split('\n')
+
+    db = db[~db['releaseKey'].isin(row)]
+    return db
+
+
 def create_tag(db):
     """Extracts tags from UserRelease and formats them into Length and Status"""
 
@@ -345,6 +356,9 @@ def main():
 
     """Remove duplicates by various categories"""
     main_db = remove_duplicates(main_db)
+
+    """Removes games that cannot be removed programmatically"""
+    main_db = remove_exclusions(main_db).reset_index(drop=True)
 
     """Extracts tags from UserRelease and formats them into Length and Status"""
     main_db = create_tag(main_db)
