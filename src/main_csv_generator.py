@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 import global_imports
-from src import xbox_spreadsheet, origin_parse, write_to_excel, report
+from src import write_to_excel, report
 
 
 def import_database_from_sql(sql_query, db_path):
@@ -111,26 +111,16 @@ def remove_manual_hidden_games_by_user(db):
 
 
 def format_titles(db, column):
-    """Format Title by removing special and unicode characters like trademark"""
-
-    # Remove Trademark and Copyright Symbols
-    db[column] = db[column].str.replace('\u2122|\u00AE', '')
-
-    # Remove Windows, Windows 10 and any word before it. for Windows 10, - Windows 10 would be removed
-    db[column] = db[column].str.replace('\S+ Windows(?: 10)?', '')
+    """Format Title by removing unneccessary items"""
 
     # Remove special apostrophe
     db[column] = db[column].str.replace('’', '')
 
-    # Make any game with The in the middle of the sentence lower case
-    db[column] = db[column].str.replace('\sthe\s', ' the ', flags=re.IGNORECASE)
-
     # Remove the at the beginning of the word
     db[column] = db[column].str.replace('^The\s', '')
 
-    # Make any game with at in the middle of the sentence lower case
-    db[column] = db[column].str.replace('\sat\s', ' at ', flags=re.IGNORECASE)
-    db[column] = db[column].str.strip()
+    # Remove Trademark and Copyright Symbols
+    db[column] = db[column].str.replace('\u2122|\u00AE', '')
 
     return db
 
@@ -148,21 +138,10 @@ def remove_duplicates(db):
     return db
 
 
-def remove_exclusions(db):
-    """Some Games cannot be removed but are just glitched by GOG. Manually removing them by entering names into
-    data/exclusions.txt"""
-
-    with open('data/exclusion.txt') as f:
-        row = f.read().split('\n')
-
-    db = db[~db['releaseKey'].isin(row)]
-    return db
-
-
 def create_tag(db):
     """Extracts tags from UserRelease and formats them into Length and Status"""
 
-    # Import Tag Database
+    # Import tags database
     tag_db_query = 'SELECT releaseKey, tag FROM UserReleaseTags'
     tag_db = import_database_from_sql(tag_db_query, global_imports.main_db_path)
     temp = db.merge(tag_db, how='left', left_on=['releaseKey'], right_on=['releaseKey'])
@@ -179,74 +158,31 @@ def create_tag(db):
             return pattern.match(x).group(1)
         return np.nan
 
+    def create_platform_other(x):
+        pattern = re.compile(r"P - (\w+)")
+        if pattern.match(x):
+            return pattern.match(x).group(1)
+        return np.nan
+
     # Create Status and Length as two separate Columns
     temp['tag'] = temp['tag'].fillna('No tag')
     temp['Status'] = temp['tag'].apply(create_status)
     temp['Length'] = temp['tag'].apply(create_length)
+    temp['other_platform'] = temp['tag'].apply(create_platform_other)
     temp.drop(['tag'], axis=1, inplace=True)
-    temp = temp.groupby('releaseKey')[['Status', 'Length']].first().reset_index()
+    temp = temp.groupby('releaseKey')[['Status', 'Length', 'other_platform']].first().reset_index()
     db = db.merge(temp, how='left', on='releaseKey')
     return db
 
 
-def format_xbox(db):
-    """Import Xbox Gamepass Details from Xbox Gamepass Masterlist in r/XboxGamePass subreddit"""
+def platform_tag_correction(db):
+    """Adds miscellaneous platforms like disc, pirated etc to original platform"""
 
-    db = pd.DataFrame(db[0], columns=db[1]).reset_index(drop=True)
-
-    # Remove the header and make the first row as header
-    new_header = db.iloc[0]
-    db = db[1:]
-    db.columns = new_header
-    db.reset_index(drop=True, inplace=True)
-
-    # Remove Xbox Games and unnecessary columns from the list
-    db = db.drop(['Metacritic', 'Genre (Giantbomb)', 'Completion', 'Age', 'Release', 'Months'], axis=1).reset_index(
-        drop=True)
-    db = db[~(db['System'] == 'Xbox One')]
-    db = db.drop(['System'], axis=1).reset_index(drop=True)
+    db.loc[db['platform'] == 'Other', 'platform'] = np.NaN
+    db.loc[db['platform'] == 'Xbox Gamepass', 'platform'] = np.NaN
+    db['platform'] = db['platform'].combine_first(db['other_platform'])
+    db.drop(['other_platform'], axis=1, inplace=True)
     return db
-
-
-def remove_xboxgamepass(db, xdb):
-    """Games removed from GP are still in main_db. Delete them"""
-
-    temp = db.loc[db['platform'] == 'Xbox Gamepass'].copy()
-    xtemp = xdb.loc[xdb['Status'].str.match(r'Active|Leaving Soon')].copy()
-
-    # Temporarily remove special characters and convert to lowercase for comparison
-    def temp_format_xbox(x):
-        x = x.lower()
-        x = re.sub('\s\(.*\)', '', x)
-        x = re.sub('\'', '', x)
-        x = re.sub(': (\w+\sedition)', '', x)
-        x = re.sub(': (\w+\scut)', '', x)
-        x = re.sub(' iii', '3', x)
-        x = re.sub(' ii', '2', x)
-        x = re.sub(' iv', '4', x)
-        x = re.sub(' ix', '9', x)
-        x = re.sub(' xv', '15', x)
-        x = re.sub('[^A-Za-z0-9]+', '', x)
-        return x
-
-    temp.loc[:, 'title'] = temp['title'].apply(temp_format_xbox)
-    xtemp.loc[:, 'Game'] = xtemp['Game'].apply(temp_format_xbox)
-
-    # Fetch index of all the games in main but not in Xbox Gamepass list and delete them
-    out = temp[~temp['title'].isin(xtemp['Game'])].index
-    db.drop(out, inplace=True)
-    db.reset_index(drop=True, inplace=True)
-    return db
-
-
-def import_origin():
-    """Import Origin Access Database by scraping from PCGamingWiki"""
-
-    basic, premiere = origin_parse.origin_games()
-    data = pd.DataFrame(basic, columns=['Title', 'Subscription'])
-    data = data.append(pd.DataFrame(premiere, columns=data.columns))
-    data = data.sort_values('Title').reset_index(drop=True)
-    return data
 
 
 def group_platform(db):
@@ -258,18 +194,6 @@ def group_platform(db):
     db = db.drop_duplicates(subset=['Title', 'Platform_y'], keep='last')
     db = db.reset_index(drop=True)
     db = db.rename(columns={"Platform_y": "Platform"})
-    return db
-
-
-def manual_tagging(db):
-    """Some tags are glitched. Add Game title, Status Tag and length to data/tag"""
-
-    with open('data/tag.txt') as f:
-        row = f.read().split('\n')
-        for i in row:
-            col = i.split(',')
-            db.loc[db['Title'].str.contains(col[0]), 'Length'] = col[1]
-            db.loc[db['Title'].str.contains(col[0]), 'Status'] = col[2]
     return db
 
 
@@ -305,15 +229,14 @@ def add_gameplay_time(db):
     return db
 
 
-def save_dataframe(dict_of_db):
+def save_dataframe(db):
     """Removes old database, marks the new database as old and generates a new database as a new database"""
 
-    for key, value in dict_of_db.items():
-        old = 'data/' + str(key) + '_old'
-        new = 'data/' + str(key)
-        os.remove(old)
-        os.rename(new, old)
-        value.to_pickle(new)
+    old = 'data/main_db_old'
+    new = 'data/main_db'
+    os.remove(old)
+    os.rename(new, old)
+    db.to_pickle(new)
 
 
 def main():
@@ -327,7 +250,8 @@ def main():
     # get the metadata mapping
     main_db_query = """SELECT GamePieces.releaseKey, GamePieces.gamePieceTypeId, GamePieces.value
         FROM GameLinks
-    	JOIN GamePieces ON GameLinks.releaseKey = GamePieces.releaseKey"""
+    	JOIN GamePieces ON GameLinks.releaseKey = GamePieces.releaseKey
+    	JOIN LibraryReleases ON GameLinks.releaseKey = LibraryReleases.releaseKey"""
     main_db = import_database_from_sql(main_db_query, global_imports.main_db_path)
 
     """Split the metadata into columns and delete all other metadata"""
@@ -357,33 +281,17 @@ def main():
     """Remove duplicates by various categories"""
     main_db = remove_duplicates(main_db)
 
-    """Removes games that cannot be removed programmatically"""
-    main_db = remove_exclusions(main_db).reset_index(drop=True)
-
     """Extracts tags from UserRelease and formats them into Length and Status"""
     main_db = create_tag(main_db)
 
-    """Import Xbox Gamepass Games as a Dataframe"""
-    xbox_db = format_xbox(xbox_spreadsheet.import_xbox_gsheet())
-    # Format Xbox Gamepass DB Titles
-    xbox_db = format_titles(xbox_db, 'Game')
-
-    """Remove games not in XboX Gamepass. Some games removed from GP is still in main_db"""
-    main_db = remove_xboxgamepass(main_db, xbox_db)
-
-    """Rename Columns and import Origin"""
-    origin_db = import_origin()
+    """Combines miscellanous platforms like pirated, disc into main platform"""
+    main_db = platform_tag_correction(main_db)
 
     main_db = main_db.rename(columns={"title": "Title", "date": "Release", "platform": "Platform"})
-    xbox_db = xbox_db.rename(columns={"Game": "Title"})
     main_db.reset_index(drop=True, inplace=True)
-    xbox_db.reset_index(drop=True, inplace=True)
 
     """Group games owned on multiple platforms"""
     main_db = group_platform(main_db)
-
-    """Manually tag glitched tags"""
-    main_db = manual_tagging(main_db)
 
     """Sort values by Title ignoring case"""
     main_db['Upper'] = main_db['Title'].str.upper()
@@ -394,8 +302,7 @@ def main():
     main_db = add_gameplay_time(main_db)
 
     """Replaces old dataframe and new dataframe with newer updates"""
-    db_list = {'main_db': main_db, 'xbox_db': xbox_db, 'origin_db': origin_db}
-    save_dataframe(db_list)
+    save_dataframe(main_db)
 
     """Write database to excel"""
     write_to_excel.main()

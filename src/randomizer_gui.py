@@ -34,14 +34,6 @@ class Randomizer:
         for item in length_values:
             self.length.insert(END, item)
 
-        # Define Subscription Checkbox
-        self.checkframe = Frame(master=self.root)
-        self.checkframe.grid(column=1, row=1, sticky=N, pady=30)
-        self.sub_or_not = IntVar()
-        self.subs = Checkbutton(master=self.checkframe, text='Exclude Subscriptions', variable=self.sub_or_not,
-                                onvalue=1, offvalue=0, font=(None, 10))
-        self.subs.pack()
-
         # Define Generate Button
         self.generateframe = Frame(master=self.root)
         self.generateframe.grid(column=1, row=2)
@@ -72,8 +64,6 @@ class Randomizer:
         temp_view = db.copy()
         temp_view = temp_view[temp_view['Status'].isin(status_list)]
         temp_view = temp_view[temp_view['Length'].isin(length_list)]
-        if self.sub_or_not.get():
-            temp_view = temp_view[~temp_view['Platform'].str.match('Xbox Gamepass|Origin Premiere')]
         row = temp_view.sample()
         title, status, length = row['Title'].values[0], row['Status'].values[0], row['Length'].values[0]
         labelval = title + '\n' + 'Status - ' + status + '\n' + 'Length - ' + length
